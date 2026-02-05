@@ -1,0 +1,23 @@
+[language]
+Japanese = "Japanese"
+English = "English"
+ChineseSimplified = "ChineseSimplified"
+ChineseTraditional = "ChineseTraditional"
+
+[key_bindings]
+open_settings = "Home"
+toggle_overlay = "F1"
+normal_attack = "MouseLeft"
+chain_attack = "E"
+operator1_skill = "1"
+operator2_skill = "2"
+operator3_skill = "3"
+operator4_skill = "4"
+heavy_attack = "MouseLeft"
+
+[overlay]
+opacity = 0.8
+x = 100
+y = 100
+width = 400
+height = 100
