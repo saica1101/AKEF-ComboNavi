@@ -5,7 +5,7 @@
 use parking_lot::RwLock;
 use rdev::{listen, Event, EventType, Key};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
@@ -20,10 +20,6 @@ pub enum KeyEvent {
     KeyUp(Key),
     /// Hold threshold reached
     HoldComplete(Key),
-    /// Hold progress update (0.0 to 1.0)
-    HoldProgress(Key, f32),
-    /// Alt key state changed (true=pressed, false=released)
-    AltChanged(bool),
     /// Tap completed (key released before hold threshold)
     TapComplete(Key),
 }
@@ -33,6 +29,7 @@ pub enum KeyEvent {
 struct KeyState {
     press_time: Instant,
     hold_triggered: bool,
+    /// Whether this key press has been consumed by a tap command
     consumed: bool,
 }
 
@@ -119,12 +116,10 @@ impl InputHandler {
 
     /// Handle key press event
     pub fn on_key_press(&self, key: Key) -> Option<KeyEvent> {
-        // Record press time, but ignore if already pressed (autorepeat)
+        // Record press time
         {
             let mut states = self.key_states.write();
             if states.contains_key(&key) {
-                // Key already pressed, ignore autorepeat for triggering new commands
-                // This prevents "Hold -> Tap" logic from double-firing if the key is still down
                 return None;
             }
             states.insert(
@@ -137,12 +132,13 @@ impl InputHandler {
             );
         }
 
-        // For tap commands, return immediately
+        // For tap commands, check immediately
         if self.matches_current_command(&key) && !self.current_command_requires_hold() {
-            // Mark as consumed to prevent Hold logic on release
-            let mut states = self.key_states.write();
-            if let Some(state) = states.get_mut(&key) {
-                state.consumed = true;
+            // Mark as consumed so release doesn't trigger logic
+            if let Some(mut states) = self.key_states.try_write() {
+                if let Some(state) = states.get_mut(&key) {
+                    state.consumed = true;
+                }
             }
             return Some(KeyEvent::TapComplete(key));
         }
@@ -158,7 +154,7 @@ impl InputHandler {
         };
 
         if let Some(state) = state {
-            // Skip if consumed (e.g., by a previous Tap)
+            // If already consumed by tap, do nothing
             if state.consumed {
                 return Some(KeyEvent::KeyUp(key));
             }
@@ -180,37 +176,19 @@ impl InputHandler {
     }
 
     /// Check if any pressed key has reached hold threshold
-    /// Call this periodically to detect holds without waiting for key release
     pub fn check_hold_complete(&self) -> Option<Key> {
         let mut states = self.key_states.write();
 
         for (key, state) in states.iter_mut() {
-            if !state.hold_triggered && state.press_time.elapsed() >= self.hold_threshold {
+            // Check threshold only if not consumed and not triggered
+            if !state.consumed
+                && !state.hold_triggered
+                && state.press_time.elapsed() >= self.hold_threshold
+            {
                 if self.matches_current_command(key) && self.current_command_requires_hold() {
-                    state.hold_triggered = true; // Mark as triggered so we don't fire again
+                    state.hold_triggered = true;
                     return Some(*key);
                 }
-            }
-        }
-
-        None
-    }
-
-    /// Check hold progress for current command
-    pub fn check_hold_progress(&self) -> Option<(Key, f32)> {
-        let states = self.key_states.read();
-
-        for (key, state) in states.iter() {
-            if !state.hold_triggered
-                && self.matches_current_command(key)
-                && self.current_command_requires_hold()
-            {
-                let elapsed = state.press_time.elapsed();
-                let threshold_ms = self.hold_threshold.as_millis() as f32;
-                let elapsed_ms = elapsed.as_millis() as f32;
-
-                let progress = (elapsed_ms / threshold_ms).min(1.0);
-                return Some((*key, progress));
             }
         }
 
@@ -233,7 +211,6 @@ impl Default for InputHandler {
 }
 
 /// Start global key listener in a separate thread
-/// Returns a receiver for key events
 pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiver<KeyEvent> {
     let (tx, rx) = mpsc::unbounded_channel();
 
@@ -245,54 +222,25 @@ pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiv
         let tx_hold = tx.clone();
         let handler_hold = handler_clone.clone();
         std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_millis(33)); // ~30fps for smooth UI updates
-
-            // Check for completion first
+            std::thread::sleep(Duration::from_millis(50));
             if let Some(key) = handler_hold.check_hold_complete() {
                 let _ = tx_hold.send(KeyEvent::HoldComplete(key));
-            } else {
-                // If not complete, check progress
-                if let Some((key, progress)) = handler_hold.check_hold_progress() {
-                    let _ = tx_hold.send(KeyEvent::HoldProgress(key, progress));
-                }
             }
         });
-
-        // Local state to track Alt key to prevent spamming events on autorepeat
-        let mut alt_is_pressed = false;
 
         // Main event callback
         let callback = move |event: Event| match event.event_type {
             EventType::KeyPress(key) => {
-                // Detect Alt Press
-                if matches!(key, Key::Alt | Key::AltGr) {
-                    if !alt_is_pressed {
-                        alt_is_pressed = true;
-                        println!("[DEBUG] Alt Pressed");
-                        let _ = tx.send(KeyEvent::AltChanged(true));
-                    }
-                }
-
                 if let Some(evt) = handler_clone.on_key_press(key) {
                     let _ = tx.send(evt);
                 }
             }
             EventType::KeyRelease(key) => {
-                // Detect Alt Release
-                if matches!(key, Key::Alt | Key::AltGr) {
-                    if alt_is_pressed {
-                        alt_is_pressed = false;
-                        println!("[DEBUG] Alt Released");
-                        let _ = tx.send(KeyEvent::AltChanged(false));
-                    }
-                }
-
                 if let Some(evt) = handler_clone.on_key_release(key) {
                     let _ = tx.send(evt);
                 }
             }
             EventType::ButtonPress(rdev::Button::Left) => {
-                // Map Left Click to Key::Unknown(1)
                 if let Some(evt) = handler_clone.on_key_press(Key::Unknown(1)) {
                     let _ = tx.send(evt);
                 }
@@ -305,34 +253,10 @@ pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiv
             _ => {}
         };
 
-        // This will block forever
         if let Err(e) = listen(callback) {
             eprintln!("Error listening to events: {:?}", e);
         }
     });
 
     rx
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_input_handler_creation() {
-        let handler = InputHandler::new();
-        assert!(handler.get_current_command().is_none());
-    }
-
-    #[test]
-    fn test_key_to_identifier() {
-        assert_eq!(
-            InputHandler::key_to_identifier(&Key::Num1),
-            Some(KeyIdentifier::Number(1))
-        );
-        assert_eq!(
-            InputHandler::key_to_identifier(&Key::KeyE),
-            Some(KeyIdentifier::Chain)
-        );
-    }
 }

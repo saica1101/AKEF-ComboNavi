@@ -1,6 +1,4 @@
 //! AKEF ComboNavi - Arknights: Endfield Combo Navigation Tool
-//!
-//! This module provides the core functionality for the combo navigation overlay.
 
 pub mod combo;
 pub mod config;
@@ -17,80 +15,12 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, State};
 
-/// Convert rdev Key to JS-friendly string name
-fn key_to_js_name(key: Key) -> String {
-    match key {
-        Key::KeyA => "A".to_string(),
-        Key::KeyB => "B".to_string(),
-        Key::KeyC => "C".to_string(),
-        Key::KeyD => "D".to_string(),
-        Key::KeyE => "E".to_string(),
-        Key::KeyF => "F".to_string(),
-        Key::KeyG => "G".to_string(),
-        Key::KeyH => "H".to_string(),
-        Key::KeyI => "I".to_string(),
-        Key::KeyJ => "J".to_string(),
-        Key::KeyK => "K".to_string(),
-        Key::KeyL => "L".to_string(),
-        Key::KeyM => "M".to_string(),
-        Key::KeyN => "N".to_string(),
-        Key::KeyO => "O".to_string(),
-        Key::KeyP => "P".to_string(),
-        Key::KeyQ => "Q".to_string(),
-        Key::KeyR => "R".to_string(),
-        Key::KeyS => "S".to_string(),
-        Key::KeyT => "T".to_string(),
-        Key::KeyU => "U".to_string(),
-        Key::KeyV => "V".to_string(),
-        Key::KeyW => "W".to_string(),
-        Key::KeyX => "X".to_string(),
-        Key::KeyY => "Y".to_string(),
-        Key::KeyZ => "Z".to_string(),
-        Key::Num0 => "0".to_string(),
-        Key::Num1 => "1".to_string(),
-        Key::Num2 => "2".to_string(),
-        Key::Num3 => "3".to_string(),
-        Key::Num4 => "4".to_string(),
-        Key::Num5 => "5".to_string(),
-        Key::Num6 => "6".to_string(),
-        Key::Num7 => "7".to_string(),
-        Key::Num8 => "8".to_string(),
-        Key::Num9 => "9".to_string(),
-        Key::Space => "Space".to_string(),
-        Key::Return => "Enter".to_string(),
-        Key::Escape => "Escape".to_string(),
-        Key::Tab => "Tab".to_string(),
-        Key::Backspace => "Backspace".to_string(),
-        Key::Delete => "Delete".to_string(),
-        Key::F1 => "F1".to_string(),
-        Key::F2 => "F2".to_string(),
-        Key::F3 => "F3".to_string(),
-        Key::F4 => "F4".to_string(),
-        Key::F5 => "F5".to_string(),
-        Key::F6 => "F6".to_string(),
-        Key::F7 => "F7".to_string(),
-        Key::F8 => "F8".to_string(),
-        Key::F9 => "F9".to_string(),
-        Key::F10 => "F10".to_string(),
-        Key::F11 => "F11".to_string(),
-        Key::F12 => "F12".to_string(),
-        _ => format!("{:?}", key),
-    }
-}
-
-/// Global application state
 pub struct AppState {
-    /// Current combo file
     pub combo_file: RwLock<Option<ComboFile>>,
-    /// Current command index
     pub current_index: RwLock<usize>,
-    /// Configuration
     pub config: RwLock<Config>,
-    /// Process monitor
     pub process_monitor: RwLock<ProcessMonitor>,
-    /// Input handler
     pub input_handler: InputHandler,
-    /// Whether overlay is visible
     pub overlay_visible: RwLock<bool>,
 }
 
@@ -106,13 +36,12 @@ impl AppState {
         }
     }
 
-    /// Sync current command to input handler
     pub fn sync_input_handler(&self) {
         let combo = self.combo_file.read();
         let index = *self.current_index.read();
 
         let command = if let Some(ref file) = *combo {
-            let commands: Vec<_> = file.commands.iter().filter(|c| !c.is_title).collect(); // Note: inefficient to collect every time, but ok for now
+            let commands: Vec<_> = file.commands.iter().filter(|c| !c.is_title).collect();
             if index < commands.len() {
                 Some(commands[index].clone())
             } else {
@@ -125,7 +54,6 @@ impl AppState {
         self.input_handler.set_current_command(command);
     }
 
-    /// Get current command info (internal helper)
     fn get_current_command_internal(&self) -> Option<CurrentCommandInfo> {
         let combo = self.combo_file.read();
         let index = *self.current_index.read();
@@ -172,7 +100,6 @@ impl Default for AppState {
     }
 }
 
-/// Current command info for frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CurrentCommandInfo {
     pub index: usize,
@@ -187,7 +114,6 @@ pub struct CurrentCommandInfo {
 
 // ============= Tauri Commands =============
 
-/// Load a combo file
 #[tauri::command]
 fn load_combo_file(
     path: String,
@@ -199,18 +125,14 @@ fn load_combo_file(
 
     *state.combo_file.write() = Some(combo_result);
     *state.current_index.write() = 0;
-
-    // Sync input handler
     state.sync_input_handler();
 
-    // Update config with last loaded file
     {
         let mut config = state.config.write();
         config.last_combo_file = Some(path);
         let _ = config.save(Config::default_path());
     }
 
-    // Emit event to update all windows (especially main overlay)
     if let Some(cmd) = state.get_current_command_internal() {
         let _ = app_handle.emit("combo-update", cmd);
     }
@@ -218,13 +140,11 @@ fn load_combo_file(
     Ok(title)
 }
 
-/// Get current command info
 #[tauri::command]
 fn get_current_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
     state.get_current_command_internal()
 }
 
-/// Advance to next command
 #[tauri::command]
 fn advance_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
     {
@@ -236,16 +156,13 @@ fn advance_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
             if commands.is_empty() {
                 return None;
             }
-
             *index = (*index + 1) % commands.len();
         }
     }
-
     state.sync_input_handler();
     state.get_current_command_internal()
 }
 
-/// Go to previous command
 #[tauri::command]
 fn previous_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
     {
@@ -253,21 +170,17 @@ fn previous_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
         if let Some(ref file) = *combo {
             let commands: Vec<_> = file.commands.iter().filter(|c| !c.is_title).collect();
             let mut index = state.current_index.write();
-
-            if commands.is_empty() {
-            } else {
+            if !commands.is_empty() {
                 if *index > 0 {
                     *index -= 1;
                 }
             }
         }
     }
-
     state.sync_input_handler();
     state.get_current_command_internal()
 }
 
-/// Reset to first command
 #[tauri::command]
 fn reset_combo(state: State<AppState>) -> Option<CurrentCommandInfo> {
     *state.current_index.write() = 0;
@@ -275,13 +188,11 @@ fn reset_combo(state: State<AppState>) -> Option<CurrentCommandInfo> {
     state.get_current_command_internal()
 }
 
-/// Get configuration
 #[tauri::command]
 fn get_config(state: State<AppState>) -> config::Config {
     state.config.read().clone()
 }
 
-/// Save configuration
 #[tauri::command]
 fn save_config(new_config: config::Config, state: State<AppState>) -> Result<(), String> {
     let mut config = state.config.write();
@@ -291,19 +202,17 @@ fn save_config(new_config: config::Config, state: State<AppState>) -> Result<(),
         .map_err(|e| e.to_string())
 }
 
-/// Check if target process is running
 #[tauri::command]
 fn is_game_running() -> bool {
     ProcessMonitor::check_once()
 }
 
-/// Toggle overlay visibility
+// 修正ポイント: AppHandleを受け取り、window.hide()/show()を実行
 #[tauri::command]
-fn toggle_overlay(app_handle: tauri::AppHandle, state: State<AppState>) -> bool {
+fn toggle_overlay(state: State<AppState>, app_handle: tauri::AppHandle) -> bool {
     let mut visible = state.overlay_visible.write();
     *visible = !*visible;
 
-    // Actually show/hide the window to prevent shadow artifacts
     if let Some(window) = app_handle.get_webview_window("main") {
         if *visible {
             let _ = window.show();
@@ -315,19 +224,16 @@ fn toggle_overlay(app_handle: tauri::AppHandle, state: State<AppState>) -> bool 
     *visible
 }
 
-/// Set overlay visibility
 #[tauri::command]
 fn set_overlay_visible(visible: bool, state: State<AppState>) {
     *state.overlay_visible.write() = visible;
 }
 
-/// Get overlay visibility
 #[tauri::command]
 fn get_overlay_visible(state: State<AppState>) -> bool {
     *state.overlay_visible.read()
 }
 
-/// Open settings window
 #[tauri::command]
 async fn open_settings_window(app_handle: tauri::AppHandle) {
     if let Some(window) = app_handle.get_webview_window("settings") {
@@ -337,22 +243,17 @@ async fn open_settings_window(app_handle: tauri::AppHandle) {
     }
 }
 
-/// Set overlay opacity
 #[tauri::command]
 async fn set_overlay_opacity(app_handle: tauri::AppHandle, opacity: f64) -> Result<(), String> {
-    // Emit event for frontend to handle style updates
-    println!("DEBUG: set_overlay_opacity called with {}", opacity);
     let _ = app_handle.emit("overlay-opacity-changed", opacity);
     Ok(())
 }
 
-/// Exit application
 #[tauri::command]
 async fn app_exit(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
-/// Set window click-through state
 #[tauri::command]
 async fn set_click_through(window: tauri::Window, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -364,7 +265,51 @@ async fn set_click_through(window: tauri::Window, enabled: bool) -> Result<(), S
     Ok(())
 }
 
-// ============= App Entry Point =============
+fn key_to_string(key: Key) -> String {
+    match key {
+        Key::KeyA => "A".to_string(),
+        Key::KeyB => "B".to_string(),
+        Key::KeyC => "C".to_string(),
+        Key::KeyD => "D".to_string(),
+        Key::KeyE => "E".to_string(),
+        Key::KeyF => "F".to_string(),
+        Key::KeyG => "G".to_string(),
+        Key::KeyH => "H".to_string(),
+        Key::KeyI => "I".to_string(),
+        Key::KeyJ => "J".to_string(),
+        Key::KeyK => "K".to_string(),
+        Key::KeyL => "L".to_string(),
+        Key::KeyM => "M".to_string(),
+        Key::KeyN => "N".to_string(),
+        Key::KeyO => "O".to_string(),
+        Key::KeyP => "P".to_string(),
+        Key::KeyQ => "Q".to_string(),
+        Key::KeyR => "R".to_string(),
+        Key::KeyS => "S".to_string(),
+        Key::KeyT => "T".to_string(),
+        Key::KeyU => "U".to_string(),
+        Key::KeyV => "V".to_string(),
+        Key::KeyW => "W".to_string(),
+        Key::KeyX => "X".to_string(),
+        Key::KeyY => "Y".to_string(),
+        Key::KeyZ => "Z".to_string(),
+        Key::Num1 => "1".to_string(),
+        Key::Num2 => "2".to_string(),
+        Key::Num3 => "3".to_string(),
+        Key::Num4 => "4".to_string(),
+        Key::Num5 => "5".to_string(),
+        Key::Num6 => "6".to_string(),
+        Key::Num7 => "7".to_string(),
+        Key::Num8 => "8".to_string(),
+        Key::Num9 => "9".to_string(),
+        Key::Num0 => "0".to_string(),
+        Key::Space => "Space".to_string(),
+        Key::Return => "Enter".to_string(),
+        Key::Escape => "Escape".to_string(),
+        Key::Tab => "Tab".to_string(),
+        _ => format!("{:?}", key),
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -390,7 +335,6 @@ pub fn run() {
             app_exit,
         ])
         .setup(|app| {
-            // Handle settings window close event (minimize instead of hide to keep in taskbar)
             if let Some(settings_window) = app.get_webview_window("settings") {
                 let settings_clone = settings_window.clone();
                 settings_window.on_window_event(move |event| {
@@ -401,7 +345,6 @@ pub fn run() {
                 });
             }
 
-            // Start process monitor in background
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
                 let mut last_status = false;
@@ -415,7 +358,6 @@ pub fn run() {
                 }
             });
 
-            // Start input listener
             let app_handle_input = app.handle().clone();
             let input_handler = app.state::<AppState>().input_handler.clone();
 
@@ -427,12 +369,6 @@ pub fn run() {
 
                     match event {
                         KeyEvent::TapComplete(_) | KeyEvent::HoldComplete(_) => {
-                            // Advance combo
-                            // We need to call advance_command logic
-                            // But we can't call the command directly easily, so we duplicate logic or make a public method
-                            // For simplicity, duplicate logic here or access internal
-
-                            // Advance index
                             let mut advanced = false;
                             {
                                 let combo = state.combo_file.read();
@@ -451,68 +387,20 @@ pub fn run() {
                                 state.sync_input_handler();
                                 if let Some(cmd) = state.get_current_command_internal() {
                                     let _ = app_handle_input.emit("combo-update", cmd);
-                                    // Also emit 0 progress to reset UI
-                                    let _ = app_handle_input.emit("hold-progress", 0.0f32);
                                 }
                             }
                         }
-                        KeyEvent::HoldProgress(_key, progress) => {
-                            let _ = app_handle_input.emit("hold-progress", progress);
-                        }
-                        KeyEvent::AltChanged(pressed) => {
-                            // Emit to frontend for visual update
-                            let _ = app_handle_input.emit("alt-status-changed", pressed);
-
-                            // Toggle click-through for main window
-                            if let Some(window) = app_handle_input.get_webview_window("main") {
-                                // If pressed, we want to interact (NOT ignore cursor).
-                                // If released, we want click-through (ignore cursor).
-                                let binding = app_handle_input.state::<AppState>();
-                                // Check if overlay is "visible" (logic: file loaded + visible enabled)
-                                let visible = binding.combo_file.read().is_some()
-                                    && *binding.overlay_visible.read();
-
-                                if visible {
-                                    #[cfg(target_os = "windows")]
-                                    let _ = window.set_ignore_cursor_events(!pressed);
-                                }
-                            }
-                        }
+                        // 修正ポイント: Altキーの検知を追加
                         KeyEvent::KeyDown(key) => {
-                            // Alt Key Handling (Drag Start)
                             if matches!(key, Key::Alt) {
                                 let _ = app_handle_input.emit("alt-status-changed", true);
-                                if let Some(window) = app_handle_input.get_webview_window("main") {
-                                    // Make interactive (drag possible)
-                                    #[cfg(target_os = "windows")]
-                                    let _ = window.set_ignore_cursor_events(false);
+                                if let Some(win) = app_handle_input.get_webview_window("main") {
+                                    let _ = win.set_ignore_cursor_events(false);
                                 }
                             }
 
-                            // Hotkey Handling
-                            let config = state.config.read();
-                            let key_name = key_to_js_name(key);
-
-                            if key_name == config.key_bindings.open_settings {
-                                let _ = app_handle_input.emit("request-open-settings", ());
-                                if let Some(window) =
-                                    app_handle_input.get_webview_window("settings")
-                                {
-                                    let _ = window.unminimize();
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
-                            } else if key_name == config.key_bindings.toggle_overlay {
-                                let mut visible = state.overlay_visible.write();
-                                *visible = !*visible;
-                                let _ =
-                                    app_handle_input.emit("overlay-visibility-changed", *visible);
-                            }
-
-                            // Global Navigation
                             match key {
                                 Key::RightArrow => {
-                                    // Advance combo
                                     let mut advanced = false;
                                     {
                                         let combo = state.combo_file.read();
@@ -537,7 +425,6 @@ pub fn run() {
                                     }
                                 }
                                 Key::LeftArrow => {
-                                    // Previous combo
                                     let mut changed = false;
                                     {
                                         let combo = state.combo_file.read();
@@ -563,15 +450,43 @@ pub fn run() {
                                 }
                                 _ => {}
                             }
+
+                            // Hotkey Check
+                            let config = state.config.read();
+                            let key_str = key_to_string(key);
+
+                            if key_str == config.key_bindings.open_settings {
+                                let _ = app_handle_input.emit("request-open-settings", ());
+                                if let Some(window) =
+                                    app_handle_input.get_webview_window("settings")
+                                {
+                                    let _ = window.unminimize();
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            } else if key_str == config.key_bindings.toggle_overlay {
+                                // Toggle logic mirroring toggle_overlay command
+                                let mut visible = state.overlay_visible.write();
+                                *visible = !*visible;
+
+                                if let Some(window) = app_handle_input.get_webview_window("main") {
+                                    if *visible {
+                                        let _ = window.show();
+                                    } else {
+                                        let _ = window.hide();
+                                    }
+                                }
+
+                                let _ =
+                                    app_handle_input.emit("overlay-visibility-changed", *visible);
+                            }
                         }
+                        // 修正ポイント: Altキーの離脱(KeyUp)検知を追加
                         KeyEvent::KeyUp(key) => {
-                            // Alt Key Handling (Drag End)
                             if matches!(key, Key::Alt) {
                                 let _ = app_handle_input.emit("alt-status-changed", false);
-                                if let Some(window) = app_handle_input.get_webview_window("main") {
-                                    // Make transparent (click-through)
-                                    #[cfg(target_os = "windows")]
-                                    let _ = window.set_ignore_cursor_events(true);
+                                if let Some(win) = app_handle_input.get_webview_window("main") {
+                                    let _ = win.set_ignore_cursor_events(true);
                                 }
                             }
                         }

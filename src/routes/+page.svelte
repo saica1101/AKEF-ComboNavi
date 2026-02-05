@@ -13,7 +13,6 @@
     checkGameRunning,
     config,
     loadConfig,
-    holdProgress,
   } from "$lib/stores/combo";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
@@ -22,7 +21,6 @@
   let isAltPressed = false;
 
   $: overlayOpacity = $config ? $config.overlay.opacity : 0.7;
-  // Use config opacity for background
   $: backgroundStyle = `background: rgba(0, 0, 0, ${overlayOpacity})`;
 
   let cleanupListeners: (() => void) | null = null;
@@ -37,44 +35,37 @@
       await checkGameRunning();
       await refreshCurrentCommand();
 
-      // Listen for request to open settings (from global key hook)
       const unlistenSettings = await listen("request-open-settings", () => {
         openSettings();
       });
 
-      // Listen for opacity changes from settings window
       const unlistenOpacity = await listen<number>(
         "overlay-opacity-changed",
-        (event) => {
-          if ($config) {
-            // Update store to reflect change immediately
-            config.update((c) => {
-              if (!c) return null;
-              return {
-                ...c,
-                overlay: { ...c.overlay, opacity: event.payload },
-              };
-            });
-          }
+        async (event) => {
+          if (!$config) await loadConfig();
+
+          config.update((c) => {
+            if (!c) return null;
+            return {
+              ...c,
+              overlay: { ...c.overlay, opacity: event.payload },
+            };
+          });
         },
       );
 
-      // Listen for global Alt key changes for dragging
+      // 修正ポイント: ドラッグ制御イベントの受信
       const unlistenAlt = await listen<boolean>(
         "alt-status-changed",
         (event) => {
-          console.log("Frontend: Alt status changed:", event.payload);
           isAltPressed = event.payload;
         },
       );
 
-      // Listen for visibility changes from backend (hotkey)
+      // 修正ポイント: 表示切替イベントの受信
       const unlistenVisibility = await listen<boolean>(
         "overlay-visibility-changed",
         (event) => {
-          console.log("Frontend: Visibility changed:", event.payload);
-          // Update store directly if possible, or just let the reactivity handle if we had a setter.
-          // Since overlayVisible is a writable store in combo.ts, we should update it.
           overlayVisible.set(event.payload);
         },
       );
@@ -87,7 +78,6 @@
       };
     })();
 
-    // Periodically check game status
     gameCheckInterval = setInterval(
       checkGameRunning,
       5000,
@@ -104,7 +94,6 @@
   }
 </script>
 
-<!-- Drag handle (visible when Alt is pressed) -->
 {#if isAltPressed}
   <div class="drag-controls">
     <div class="drag-hint">
@@ -156,7 +145,6 @@
     </div>
   {:else if $currentCommand}
     <div class="combo-display">
-      <!-- Title bar -->
       <div class="title-bar">
         <span class="title">{$currentCommand.title}</span>
         <span class="progress"
@@ -164,19 +152,13 @@
         >
       </div>
 
-      <!-- Progress bar -->
       <div class="progress-bar">
         <div class="progress-fill" style="width: {$progress}%"></div>
       </div>
 
-      <!-- Current command -->
       <div class="command-info">
         <div class="key-display" class:hold={$currentCommand.is_hold}>
           {#if $currentCommand.is_hold}
-            <div
-              class="hold-progress-fill"
-              style="height: {$holdProgress * 100}%"
-            ></div>
             <span class="hold-indicator">HOLD</span>
           {/if}
           <span class="key">{$currentCommand.key_display}</span>
@@ -210,7 +192,6 @@
     overflow: hidden;
     user-select: none;
   }
-
   .drag-controls {
     position: fixed;
     top: 8px;
@@ -219,7 +200,6 @@
     gap: 8px;
     z-index: 1000;
   }
-
   .drag-hint {
     padding: 6px 12px;
     background: rgba(79, 195, 247, 0.9);
@@ -235,7 +215,6 @@
     font-weight: 600;
     pointer-events: none;
   }
-
   .settings-btn {
     padding: 6px 12px;
     background: rgba(42, 58, 93, 0.9);
@@ -251,11 +230,9 @@
     animation: fadeIn 0.2s ease-in;
     backdrop-filter: blur(4px);
   }
-
   .settings-btn:hover {
     background: rgba(79, 195, 247, 0.3);
   }
-
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -266,31 +243,26 @@
       transform: translateY(0);
     }
   }
-
   .overlay-container {
     width: 100vw;
     height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Default background, overwritten by inline style */
     background: rgba(0, 0, 0, 0.7);
     border-radius: 8px;
     transition:
       opacity 0.3s ease,
       background-color 0.2s ease;
   }
-
   .overlay-container.draggable {
     cursor: move;
     border: 2px solid rgba(79, 195, 247, 0.5);
   }
-
   .overlay-container.hidden {
     opacity: 0;
     pointer-events: none;
   }
-
   .waiting-message {
     display: flex;
     align-items: center;
@@ -299,7 +271,6 @@
     font-size: 14px;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
   }
-
   .pulse-dot {
     width: 8px;
     height: 8px;
@@ -307,7 +278,6 @@
     border-radius: 50%;
     animation: pulse 1.5s ease-in-out infinite;
   }
-
   @keyframes pulse {
     0%,
     100% {
@@ -319,7 +289,6 @@
       transform: scale(0.8);
     }
   }
-
   .combo-display {
     width: 100%;
     padding: 12px 16px;
@@ -327,7 +296,6 @@
     flex-direction: column;
     gap: 8px;
   }
-
   .title-bar {
     display: flex;
     justify-content: space-between;
@@ -336,30 +304,25 @@
     color: #ccc;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   }
-
   .title {
     font-weight: 600;
   }
-
   .progress-bar {
     height: 3px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 2px;
     overflow: hidden;
   }
-
   .progress-fill {
     height: 100%;
     background: linear-gradient(90deg, #4fc3f7, #00bcd4);
     transition: width 0.3s ease;
   }
-
   .command-info {
     display: flex;
     align-items: center;
     gap: 16px;
   }
-
   .key-display {
     display: flex;
     flex-direction: column;
@@ -371,25 +334,11 @@
     border-radius: 8px;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
-    position: relative; /* For absolute positioning of progress fill */
-    overflow: hidden; /* To verify fill doesn't spill out */
   }
-
-  .hold-progress-fill {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(255, 107, 107, 0.4);
-    transition: height 0.05s linear;
-    z-index: 0;
-  }
-
   .key-display.hold {
     border-color: #ff6b6b;
     animation: holdGlow 1s ease-in-out infinite;
   }
-
   @keyframes holdGlow {
     0%,
     100% {
@@ -399,46 +348,39 @@
       box-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
     }
   }
-
   .hold-indicator {
+    font-size: 10px;
+    color: #ff6b6b;
     font-weight: bold;
     letter-spacing: 1px;
-    z-index: 1; /* Ensure text is above fill */
   }
-
   .key {
     font-size: 24px;
     font-weight: bold;
     color: #fff;
     text-shadow: 0 0 5px rgba(79, 195, 247, 0.5);
-    z-index: 1; /* Ensure text is above fill */
   }
-
   .details {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-
   .character {
     font-size: 18px;
     font-weight: 600;
     color: #fff;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
   }
-
   .skill-type {
     font-size: 14px;
     color: #4fc3f7;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   }
-
   .memo {
     font-size: 12px;
     color: #aaa;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   }
-
   .no-file {
     display: flex;
     flex-direction: column;
@@ -448,7 +390,6 @@
     font-size: 14px;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
   }
-
   .hint {
     font-size: 12px;
     color: #aaa;
