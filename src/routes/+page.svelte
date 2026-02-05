@@ -68,10 +68,22 @@
         },
       );
 
+      // Listen for visibility changes from backend (hotkey)
+      const unlistenVisibility = await listen<boolean>(
+        "overlay-visibility-changed",
+        (event) => {
+          console.log("Frontend: Visibility changed:", event.payload);
+          // Update store directly if possible, or just let the reactivity handle if we had a setter.
+          // Since overlayVisible is a writable store in combo.ts, we should update it.
+          overlayVisible.set(event.payload);
+        },
+      );
+
       cleanupListeners = () => {
         unlistenSettings();
         unlistenOpacity();
         unlistenAlt();
+        unlistenVisibility();
       };
     })();
 
@@ -87,44 +99,10 @@
     };
   });
 
-  // Keyboard shortcuts (for testing)
-  // Note: Alt key logic is now handled by backend (alt-status-changed)
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "ArrowRight" || event.key === " ") {
-      advanceCommand();
-    } else if (event.key === "ArrowLeft") {
-      previousCommand();
-    } else if (event.key === "r" || event.key === "R") {
-      resetCombo();
-    }
-  }
-
-  function handleKeyup(event: KeyboardEvent) {
-    // Nothing to do here for now
-  }
-
-  // Handle window blur to reset Alt state
-  // Still useful as a fallback or cleanup
-  function handleBlur() {
-    if (isAltPressed) {
-      // isAltPressed = false; // Let backend drive this?
-      // Actually, if we lose focus but backend says Alt is down (global hook), we should respect backend.
-      // But if we tab out or something, Rdev might lose track?
-      // Rdev is global, so it should be fine.
-      // Let's rely on backend event.
-    }
-  }
-
   function openSettings() {
     invoke("open_settings_window");
   }
 </script>
-
-<svelte:window
-  on:keydown={handleKeydown}
-  on:keyup={handleKeyup}
-  on:blur={handleBlur}
-/>
 
 <!-- Drag handle (visible when Alt is pressed) -->
 {#if isAltPressed}
