@@ -60,6 +60,9 @@ export const isLoading = writable<boolean>(false);
 // Error message
 export const errorMessage = writable<string | null>(null);
 
+// Hold progress (0.0 to 1.0)
+export const holdProgress = writable<number>(0);
+
 // Derived: Progress percentage
 export const progress = derived(currentCommand, ($cmd) => {
   if (!$cmd || $cmd.total === 0) return 0;
@@ -177,5 +180,11 @@ export async function initializeListeners(): Promise<void> {
   // Listen for combo updates (from key input handler)
   await listen<CurrentCommandInfo>('combo-update', (event) => {
     currentCommand.set(event.payload);
+    holdProgress.set(0); // Reset hold progress on new command
+  });
+
+  // Listen for hold progress
+  await listen<number>('hold-progress', (event) => {
+    holdProgress.set(event.payload);
   });
 }

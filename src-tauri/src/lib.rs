@@ -380,6 +380,30 @@ pub fn run() {
                                 state.sync_input_handler();
                                 if let Some(cmd) = state.get_current_command_internal() {
                                     let _ = app_handle_input.emit("combo-update", cmd);
+                                    // Also emit 0 progress to reset UI
+                                    let _ = app_handle_input.emit("hold-progress", 0.0f32);
+                                }
+                            }
+                        }
+                        KeyEvent::HoldProgress(_key, progress) => {
+                            let _ = app_handle_input.emit("hold-progress", progress);
+                        }
+                        KeyEvent::AltChanged(pressed) => {
+                            // Emit to frontend for visual update
+                            let _ = app_handle_input.emit("alt-status-changed", pressed);
+
+                            // Toggle click-through for main window
+                            if let Some(window) = app_handle_input.get_webview_window("main") {
+                                // If pressed, we want to interact (NOT ignore cursor).
+                                // If released, we want click-through (ignore cursor).
+                                let binding = app_handle_input.state::<AppState>();
+                                // Check if overlay is "visible" (logic: file loaded + visible enabled)
+                                let visible = binding.combo_file.read().is_some()
+                                    && *binding.overlay_visible.read();
+
+                                if visible {
+                                    #[cfg(target_os = "windows")]
+                                    let _ = window.set_ignore_cursor_events(!pressed);
                                 }
                             }
                         }

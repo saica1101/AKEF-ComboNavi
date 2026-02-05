@@ -13,6 +13,7 @@
     checkGameRunning,
     config,
     loadConfig,
+    holdProgress,
   } from "$lib/stores/combo";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
@@ -58,9 +59,19 @@
         },
       );
 
+      // Listen for global Alt key changes for dragging
+      const unlistenAlt = await listen<boolean>(
+        "alt-status-changed",
+        (event) => {
+          console.log("Frontend: Alt status changed:", event.payload);
+          isAltPressed = event.payload;
+        },
+      );
+
       cleanupListeners = () => {
         unlistenSettings();
         unlistenOpacity();
+        unlistenAlt();
       };
     })();
 
@@ -77,12 +88,8 @@
   });
 
   // Keyboard shortcuts (for testing)
+  // Note: Alt key logic is now handled by backend (alt-status-changed)
   function handleKeydown(event: KeyboardEvent) {
-    // Track Alt key state
-    if (event.key === "Alt") {
-      isAltPressed = true;
-    }
-
     if (event.key === "ArrowRight" || event.key === " ") {
       advanceCommand();
     } else if (event.key === "ArrowLeft") {
@@ -93,16 +100,18 @@
   }
 
   function handleKeyup(event: KeyboardEvent) {
-    // Track Alt key release
-    if (event.key === "Alt") {
-      isAltPressed = false;
-    }
+    // Nothing to do here for now
   }
 
   // Handle window blur to reset Alt state
+  // Still useful as a fallback or cleanup
   function handleBlur() {
     if (isAltPressed) {
-      isAltPressed = false;
+      // isAltPressed = false; // Let backend drive this?
+      // Actually, if we lose focus but backend says Alt is down (global hook), we should respect backend.
+      // But if we tab out or something, Rdev might lose track?
+      // Rdev is global, so it should be fine.
+      // Let's rely on backend event.
     }
   }
 
@@ -186,6 +195,10 @@
       <div class="command-info">
         <div class="key-display" class:hold={$currentCommand.is_hold}>
           {#if $currentCommand.is_hold}
+            <div
+              class="hold-progress-fill"
+              style="height: {$holdProgress * 100}%"
+            ></div>
             <span class="hold-indicator">HOLD</span>
           {/if}
           <span class="key">{$currentCommand.key_display}</span>
@@ -380,6 +393,18 @@
     border-radius: 8px;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+    position: relative; /* For absolute positioning of progress fill */
+    overflow: hidden; /* To verify fill doesn't spill out */
+  }
+
+  .hold-progress-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 107, 107, 0.4);
+    transition: height 0.05s linear;
+    z-index: 0;
   }
 
   .key-display.hold {
@@ -398,10 +423,9 @@
   }
 
   .hold-indicator {
-    font-size: 10px;
-    color: #ff6b6b;
     font-weight: bold;
     letter-spacing: 1px;
+    z-index: 1; /* Ensure text is above fill */
   }
 
   .key {
@@ -409,6 +433,7 @@
     font-weight: bold;
     color: #fff;
     text-shadow: 0 0 5px rgba(79, 195, 247, 0.5);
+    z-index: 1; /* Ensure text is above fill */
   }
 
   .details {

@@ -20,6 +20,10 @@ pub enum KeyEvent {
     KeyUp(Key),
     /// Hold threshold reached
     HoldComplete(Key),
+    /// Hold progress update (0.0 to 1.0)
+    HoldProgress(Key, f32),
+    /// Alt key state changed (true=pressed, false=released)
+    AltChanged(bool),
     /// Tap completed (key released before hold threshold)
     TapComplete(Key),
 }
@@ -180,6 +184,27 @@ impl InputHandler {
         None
     }
 
+    /// Check hold progress for current command
+    pub fn check_hold_progress(&self) -> Option<(Key, f32)> {
+        let states = self.key_states.read();
+
+        for (key, state) in states.iter() {
+            if !state.hold_triggered
+                && self.matches_current_command(key)
+                && self.current_command_requires_hold()
+            {
+                let elapsed = state.press_time.elapsed();
+                let threshold_ms = self.hold_threshold.as_millis() as f32;
+                let elapsed_ms = elapsed.as_millis() as f32;
+
+                let progress = (elapsed_ms / threshold_ms).min(1.0);
+                return Some((*key, progress));
+            }
+        }
+
+        None
+    }
+
     /// Create event channel
     pub fn create_event_channel() -> (
         mpsc::UnboundedSender<KeyEvent>,
@@ -208,20 +233,48 @@ pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiv
         let tx_hold = tx.clone();
         let handler_hold = handler_clone.clone();
         std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_millis(50));
+            std::thread::sleep(Duration::from_millis(33)); // ~30fps for smooth UI updates
+
+            // Check for completion first
             if let Some(key) = handler_hold.check_hold_complete() {
                 let _ = tx_hold.send(KeyEvent::HoldComplete(key));
+            } else {
+                // If not complete, check progress
+                if let Some((key, progress)) = handler_hold.check_hold_progress() {
+                    let _ = tx_hold.send(KeyEvent::HoldProgress(key, progress));
+                }
             }
         });
+
+        // Local state to track Alt key to prevent spamming events on autorepeat
+        let mut alt_is_pressed = false;
 
         // Main event callback
         let callback = move |event: Event| match event.event_type {
             EventType::KeyPress(key) => {
+                // Detect Alt Press
+                if matches!(key, Key::Alt | Key::AltGr) {
+                    if !alt_is_pressed {
+                        alt_is_pressed = true;
+                        println!("[DEBUG] Alt Pressed");
+                        let _ = tx.send(KeyEvent::AltChanged(true));
+                    }
+                }
+
                 if let Some(evt) = handler_clone.on_key_press(key) {
                     let _ = tx.send(evt);
                 }
             }
             EventType::KeyRelease(key) => {
+                // Detect Alt Release
+                if matches!(key, Key::Alt | Key::AltGr) {
+                    if alt_is_pressed {
+                        alt_is_pressed = false;
+                        println!("[DEBUG] Alt Released");
+                        let _ = tx.send(KeyEvent::AltChanged(false));
+                    }
+                }
+
                 if let Some(evt) = handler_clone.on_key_release(key) {
                     let _ = tx.send(evt);
                 }
