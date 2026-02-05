@@ -207,7 +207,6 @@ fn is_game_running() -> bool {
     ProcessMonitor::check_once()
 }
 
-// 修正ポイント: AppHandleを受け取り、window.hide()/show()を実行
 #[tauri::command]
 fn toggle_overlay(state: State<AppState>, app_handle: tauri::AppHandle) -> bool {
     let mut visible = state.overlay_visible.write();
@@ -335,6 +334,11 @@ pub fn run() {
             app_exit,
         ])
         .setup(|app| {
+            // Set initial click-through state for main window
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.set_ignore_cursor_events(true);
+            }
+
             if let Some(settings_window) = app.get_webview_window("settings") {
                 let settings_clone = settings_window.clone();
                 settings_window.on_window_event(move |event| {
@@ -390,9 +394,13 @@ pub fn run() {
                                 }
                             }
                         }
-                        // 修正ポイント: Altキーの検知を追加
+                        KeyEvent::HoldProgress(_, progress) => {
+                            // Emit hold progress to frontend
+                            let _ = app_handle_input.emit("hold-progress", progress);
+                        }
                         KeyEvent::KeyDown(key) => {
-                            if matches!(key, Key::Alt) {
+                            if matches!(key, Key::Alt | Key::AltGr) {
+                                println!("[DEBUG] lib.rs received Alt KeyDown: {:?}", key);
                                 let _ = app_handle_input.emit("alt-status-changed", true);
                                 if let Some(win) = app_handle_input.get_webview_window("main") {
                                     let _ = win.set_ignore_cursor_events(false);
@@ -455,17 +463,27 @@ pub fn run() {
                             let config = state.config.read();
                             let key_str = key_to_string(key);
 
+                            println!("[DEBUG] Key pressed: {:?} => '{}'", key, key_str);
+                            println!(
+                                "[DEBUG] open_settings binding: '{}'",
+                                config.key_bindings.open_settings
+                            );
+
                             if key_str == config.key_bindings.open_settings {
+                                println!("[DEBUG] Opening settings window");
                                 let _ = app_handle_input.emit("request-open-settings", ());
+                                // Drop config lock before window operations
+                                drop(config);
+
                                 if let Some(window) =
                                     app_handle_input.get_webview_window("settings")
                                 {
-                                    let _ = window.unminimize();
+                                    // Ensure window is visible and focused
                                     let _ = window.show();
+                                    let _ = window.unminimize();
                                     let _ = window.set_focus();
                                 }
                             } else if key_str == config.key_bindings.toggle_overlay {
-                                // Toggle logic mirroring toggle_overlay command
                                 let mut visible = state.overlay_visible.write();
                                 *visible = !*visible;
 
@@ -481,9 +499,9 @@ pub fn run() {
                                     app_handle_input.emit("overlay-visibility-changed", *visible);
                             }
                         }
-                        // 修正ポイント: Altキーの離脱(KeyUp)検知を追加
                         KeyEvent::KeyUp(key) => {
-                            if matches!(key, Key::Alt) {
+                            if matches!(key, Key::Alt | Key::AltGr) {
+                                println!("[DEBUG] lib.rs received Alt KeyUp: {:?}", key);
                                 let _ = app_handle_input.emit("alt-status-changed", false);
                                 if let Some(win) = app_handle_input.get_webview_window("main") {
                                     let _ = win.set_ignore_cursor_events(true);

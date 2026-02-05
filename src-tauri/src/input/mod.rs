@@ -22,6 +22,8 @@ pub enum KeyEvent {
     HoldComplete(Key),
     /// Tap completed (key released before hold threshold)
     TapComplete(Key),
+    /// Hold progress update (key, progress 0.0-1.0)
+    HoldProgress(Key, f32),
 }
 
 /// State of a pressed key
@@ -223,6 +225,28 @@ pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiv
         let handler_hold = handler_clone.clone();
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_millis(50));
+
+            // Check for progress on hold keys
+            let states = handler_hold.key_states.read();
+            for (key, state) in states.iter() {
+                if !state.consumed && !state.hold_triggered {
+                    if handler_hold.matches_current_command(key)
+                        && handler_hold.current_command_requires_hold()
+                    {
+                        let elapsed = state.press_time.elapsed();
+                        let progress = (elapsed.as_millis() as f32)
+                            / (handler_hold.hold_threshold.as_millis() as f32);
+
+                        if progress >= 1.0 {
+                            // Will be handled by check_hold_complete
+                        } else {
+                            let _ = tx_hold.send(KeyEvent::HoldProgress(*key, progress.min(1.0)));
+                        }
+                    }
+                }
+            }
+            drop(states);
+
             if let Some(key) = handler_hold.check_hold_complete() {
                 let _ = tx_hold.send(KeyEvent::HoldComplete(key));
             }
@@ -231,13 +255,31 @@ pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiv
         // Main event callback
         let callback = move |event: Event| match event.event_type {
             EventType::KeyPress(key) => {
-                if let Some(evt) = handler_clone.on_key_press(key) {
-                    let _ = tx.send(evt);
+                // Always send KeyDown for hotkey processing
+                let _ = tx.send(KeyEvent::KeyDown(key));
+
+                // Also process through handler for combo detection (if not Alt)
+                if !matches!(key, Key::Alt | Key::AltGr) {
+                    if let Some(evt) = handler_clone.on_key_press(key) {
+                        // Only send if it's a combo event (Tap/Hold complete)
+                        if matches!(evt, KeyEvent::TapComplete(_)) {
+                            let _ = tx.send(evt);
+                        }
+                    }
                 }
             }
             EventType::KeyRelease(key) => {
-                if let Some(evt) = handler_clone.on_key_release(key) {
-                    let _ = tx.send(evt);
+                // Always send KeyUp
+                let _ = tx.send(KeyEvent::KeyUp(key));
+
+                // Also process through handler for combo detection (if not Alt)
+                if !matches!(key, Key::Alt | Key::AltGr) {
+                    if let Some(evt) = handler_clone.on_key_release(key) {
+                        // Only send if it's a combo event (HoldComplete)
+                        if matches!(evt, KeyEvent::HoldComplete(_)) {
+                            let _ = tx.send(evt);
+                        }
+                    }
                 }
             }
             EventType::ButtonPress(rdev::Button::Left) => {

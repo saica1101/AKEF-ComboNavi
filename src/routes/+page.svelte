@@ -5,6 +5,7 @@
     overlayVisible,
     isGameRunning,
     progress,
+    holdProgress,
     refreshCurrentCommand,
     advanceCommand,
     previousCommand,
@@ -19,6 +20,10 @@
 
   let mounted = false;
   let isAltPressed = false;
+  let isDragging = false;
+
+  // Show drag UI when Alt is pressed OR actively dragging
+  $: showDragUI = isAltPressed || isDragging;
 
   $: overlayOpacity = $config ? $config.overlay.opacity : 0.7;
   $: backgroundStyle = `background: rgba(0, 0, 0, ${overlayOpacity})`;
@@ -26,8 +31,33 @@
   let cleanupListeners: (() => void) | null = null;
   let gameCheckInterval: number | null = null;
 
+  // Mouse handlers for drag tracking (defined at component level for reactive access)
+  function handleMouseDown() {
+    if (isAltPressed) {
+      isDragging = true;
+    }
+  }
+
+  function handleMouseUp() {
+    isDragging = false;
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    // Handle Home key to open settings even when overlay has focus
+    if (e.key === "Home") {
+      openSettings();
+    }
+  }
+
   onMount(() => {
     mounted = true;
+
+    const handleWindowBlur = () => {
+      isAltPressed = false;
+      isDragging = false;
+    };
+
+    window.addEventListener("blur", handleWindowBlur);
 
     (async () => {
       await loadConfig();
@@ -54,7 +84,6 @@
         },
       );
 
-      // 修正ポイント: ドラッグ制御イベントの受信
       const unlistenAlt = await listen<boolean>(
         "alt-status-changed",
         (event) => {
@@ -62,7 +91,6 @@
         },
       );
 
-      // 修正ポイント: 表示切替イベントの受信
       const unlistenVisibility = await listen<boolean>(
         "overlay-visibility-changed",
         (event) => {
@@ -86,6 +114,7 @@
     return () => {
       if (cleanupListeners) cleanupListeners();
       if (gameCheckInterval) clearInterval(gameCheckInterval);
+      window.removeEventListener("blur", handleWindowBlur);
     };
   });
 
@@ -94,7 +123,13 @@
   }
 </script>
 
-{#if isAltPressed}
+<svelte:window
+  on:mousedown={handleMouseDown}
+  on:mouseup={handleMouseUp}
+  on:keydown={handleKeyDown}
+/>
+
+{#if showDragUI}
   <div class="drag-controls">
     <div class="drag-hint">
       <svg
@@ -134,8 +169,8 @@
 <main
   class="overlay-container"
   class:hidden={!$overlayVisible}
-  class:draggable={isAltPressed}
-  data-tauri-drag-region={isAltPressed ? true : undefined}
+  class:draggable={showDragUI}
+  data-tauri-drag-region={showDragUI ? true : undefined}
   style={backgroundStyle}
 >
   {#if !$isGameRunning}
@@ -159,6 +194,10 @@
       <div class="command-info">
         <div class="key-display" class:hold={$currentCommand.is_hold}>
           {#if $currentCommand.is_hold}
+            <div
+              class="hold-fill-overlay"
+              style="height: {$holdProgress * 100}%"
+            ></div>
             <span class="hold-indicator">HOLD</span>
           {/if}
           <span class="key">{$currentCommand.key_display}</span>
@@ -259,6 +298,9 @@
     cursor: move;
     border: 2px solid rgba(79, 195, 247, 0.5);
   }
+  .overlay-container.draggable * {
+    pointer-events: none;
+  }
   .overlay-container.hidden {
     opacity: 0;
     pointer-events: none;
@@ -324,6 +366,8 @@
     gap: 16px;
   }
   .key-display {
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -348,13 +392,27 @@
       box-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
     }
   }
+  .hold-fill-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(
+      to top,
+      rgba(255, 107, 107, 0.6),
+      rgba(255, 107, 107, 0.3)
+    );
+    pointer-events: none;
+    transition: height 0.05s linear;
+    z-index: 0;
+  }
   .hold-indicator {
-    font-size: 10px;
-    color: #ff6b6b;
-    font-weight: bold;
-    letter-spacing: 1px;
+    position: relative;
+    z-index: 1;
   }
   .key {
+    position: relative;
+    z-index: 1;
     font-size: 24px;
     font-weight: bold;
     color: #fff;
