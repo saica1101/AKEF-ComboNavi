@@ -299,9 +299,19 @@ fn is_game_running() -> bool {
 
 /// Toggle overlay visibility
 #[tauri::command]
-fn toggle_overlay(state: State<AppState>) -> bool {
+fn toggle_overlay(app_handle: tauri::AppHandle, state: State<AppState>) -> bool {
     let mut visible = state.overlay_visible.write();
     *visible = !*visible;
+
+    // Actually show/hide the window to prevent shadow artifacts
+    if let Some(window) = app_handle.get_webview_window("main") {
+        if *visible {
+            let _ = window.show();
+        } else {
+            let _ = window.hide();
+        }
+    }
+
     *visible
 }
 

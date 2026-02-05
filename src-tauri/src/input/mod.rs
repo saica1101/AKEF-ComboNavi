@@ -33,6 +33,7 @@ pub enum KeyEvent {
 struct KeyState {
     press_time: Instant,
     hold_triggered: bool,
+    consumed: bool,
 }
 
 /// Input handler for combo navigation
@@ -131,12 +132,18 @@ impl InputHandler {
                 KeyState {
                     press_time: Instant::now(),
                     hold_triggered: false,
+                    consumed: false,
                 },
             );
         }
 
         // For tap commands, return immediately
         if self.matches_current_command(&key) && !self.current_command_requires_hold() {
+            // Mark as consumed to prevent Hold logic on release
+            let mut states = self.key_states.write();
+            if let Some(state) = states.get_mut(&key) {
+                state.consumed = true;
+            }
             return Some(KeyEvent::TapComplete(key));
         }
 
@@ -151,6 +158,11 @@ impl InputHandler {
         };
 
         if let Some(state) = state {
+            // Skip if consumed (e.g., by a previous Tap)
+            if state.consumed {
+                return Some(KeyEvent::KeyUp(key));
+            }
+
             // Only consider hold completion if it wasn't already triggered
             if !state.hold_triggered {
                 let duration = state.press_time.elapsed();
