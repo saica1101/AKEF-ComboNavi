@@ -219,9 +219,9 @@
         <section class="tab-content">
           <h2>コンボファイル</h2>
           <div class="form-group">
-            <label
-              >現在のファイル: {localConfig.last_combo_file || "未選択"}</label
-            >
+            <div class="current-file-label">
+              現在のファイル: {localConfig.last_combo_file || "未選択"}
+            </div>
             <button class="btn secondary" on:click={handleLoadFile}
               >ファイルを選択して読み込む</button
             >
@@ -428,7 +428,8 @@
     margin-bottom: 16px;
   }
 
-  .form-group label {
+  .form-group label,
+  .form-group .current-file-label {
     display: block;
     margin-bottom: 6px;
     font-size: 14px;

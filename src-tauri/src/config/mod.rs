@@ -101,25 +101,26 @@ impl Config {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Load configuration from file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let content = fs::read_to_string(path).map_err(|e| ConfigError::IoError(e.to_string()))?;
         toml::from_str(&content).map_err(|e| ConfigError::ParseError(e.to_string()))
     }
-    
+
     /// Save configuration to file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
-        let content = toml::to_string_pretty(self).map_err(|e| ConfigError::SerializeError(e.to_string()))?;
-        
+        let content =
+            toml::to_string_pretty(self).map_err(|e| ConfigError::SerializeError(e.to_string()))?;
+
         // Ensure parent directory exists
         if let Some(parent) = path.as_ref().parent() {
             fs::create_dir_all(parent).map_err(|e| ConfigError::IoError(e.to_string()))?;
         }
-        
+
         fs::write(path, content).map_err(|e| ConfigError::IoError(e.to_string()))
     }
-    
+
     /// Get default config file path
     pub fn default_path() -> PathBuf {
         // Get executable directory
@@ -130,7 +131,7 @@ impl Config {
         }
         PathBuf::from("config/General.toml")
     }
-    
+
     /// Load from default path or create default config
     pub fn load_or_default() -> Self {
         let path = Self::default_path();
@@ -169,19 +170,22 @@ impl std::error::Error for ConfigError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_config() {
         let config = Config::default();
         assert!(matches!(config.language, Language::Japanese));
         assert_eq!(config.key_bindings.open_settings, "Home");
     }
-    
+
     #[test]
     fn test_config_serialization() {
         let config = Config::default();
         let toml_str = toml::to_string_pretty(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        assert_eq!(parsed.key_bindings.open_settings, config.key_bindings.open_settings);
+        assert_eq!(
+            parsed.key_bindings.open_settings,
+            config.key_bindings.open_settings
+        );
     }
 }

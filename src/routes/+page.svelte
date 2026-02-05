@@ -12,6 +12,7 @@
     initializeListeners,
     checkGameRunning,
     config,
+    loadConfig,
   } from "$lib/stores/combo";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
@@ -30,6 +31,7 @@
     mounted = true;
 
     (async () => {
+      await loadConfig();
       await initializeListeners();
       await checkGameRunning();
       await refreshCurrentCommand();
@@ -286,15 +288,6 @@
     transition:
       opacity 0.3s ease,
       background-color 0.2s ease;
-  }
-
-  .overlay-content {
-    text-align: center;
-    color: #fff;
-    /* Add text shadow for better visibility */
-    text-shadow:
-      0 2px 4px rgba(0, 0, 0, 0.9),
-      0 0 10px rgba(0, 0, 0, 0.7);
   }
 
   .overlay-container.draggable {
