@@ -8,15 +8,13 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+build.ps1
 
 # Rust / Tauri
 target/
 src-tauri/target/
 **/*.rs.bk
 *.log
-
-# documents
-RELEASE.md
 
 # Test Text file
 resources/combos/*.txt
@@ -27,6 +25,9 @@ resources/combos/*.txt
 *.msi
 *.exe
 !src-tauri/icons/*.exe
+
+# documents
+RELEASE.md
 
 # Update metadata (generated for releases)
 # Note: latest.json should be generated for each release and uploaded to GitHub
