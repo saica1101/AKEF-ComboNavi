@@ -16,6 +16,7 @@
   let localConfig: Config | null = null;
   let isSaving = false;
   let saveMessage = "";
+  let updateStatus = "";
 
   onMount(async () => {
     await loadConfig();
@@ -194,6 +195,28 @@
     { key: "operator3_skill", label: "オペレーター3 戦技" },
     { key: "operator4_skill", label: "オペレーター4 戦技" },
   ];
+
+  async function handleCheckUpdate() {
+    updateStatus = "アップデートを確認中...";
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+
+      if (update?.available) {
+        updateStatus = `新しいバージョン ${update.version} が利用可能です。ダウンロード中...`;
+        await update.downloadAndInstall();
+        updateStatus =
+          "アップデートがインストールされました。アプリを再起動してください。";
+      } else {
+        updateStatus = "最新バージョンを使用しています。";
+      }
+
+      setTimeout(() => (updateStatus = ""), 5000);
+    } catch (e) {
+      updateStatus = `エラー: ${e}`;
+      setTimeout(() => (updateStatus = ""), 5000);
+    }
+  }
 </script>
 
 <main class="settings-container">
@@ -312,9 +335,17 @@
             <p>Version: 0.1.0</p>
             <p>Arknights: Endfield 向けコンボナビゲーションツール</p>
             <div class="links">
-              <a href="https://github.com" target="_blank">GitHub</a>
+              <a
+                href="https://github.com/saica1101/AKEF-ComboNavi"
+                target="_blank">GitHub</a
+              >
             </div>
-            <button class="btn secondary">アップデートをチェック</button>
+            <button class="btn secondary" on:click={handleCheckUpdate}
+              >アップデートをチェック</button
+            >
+            {#if updateStatus}
+              <p class="update-status">{updateStatus}</p>
+            {/if}
           </div>
         </section>
       {:else if activeTab === "license"}
@@ -564,5 +595,11 @@
     align-items: center;
     gap: 16px;
     margin-bottom: 8px;
+  }
+
+  .update-status {
+    margin-top: 8px;
+    font-size: 14px;
+    color: #4fc3f7;
   }
 </style>

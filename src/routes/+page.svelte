@@ -17,6 +17,7 @@
   } from "$lib/stores/combo";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
 
   let mounted = false;
   let isAltPressed = false;
@@ -38,8 +39,15 @@
     }
   }
 
-  function handleMouseUp() {
+  function handleMouseUp(e: MouseEvent) {
     isDragging = false;
+
+    // Check if Alt key is still pressed after mouse up
+    // If not, ensure click-through is re-enabled
+    if (!e.altKey && !isAltPressed) {
+      const window = getCurrentWindow();
+      window.setIgnoreCursorEvents(true).catch(console.error);
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -293,10 +301,14 @@
     transition:
       opacity 0.3s ease,
       background-color 0.2s ease;
+    /* デフォルトではクリックを透過 */
+    pointer-events: none;
   }
   .overlay-container.draggable {
     cursor: move;
     border: 2px solid rgba(79, 195, 247, 0.5);
+    /* Altキー押下時のみクリック可能 */
+    pointer-events: auto;
   }
   .overlay-container.draggable * {
     pointer-events: none;

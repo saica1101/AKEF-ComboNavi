@@ -14,3 +14,25 @@ target/
 src-tauri/target/
 **/*.rs.bk
 *.log
+
+# documents
+RELEASE.md
+
+# Test Text file
+resources/combos/*.txt
+
+# Release files (build artifacts)
+*.zip
+*.sig
+*.msi
+*.exe
+!src-tauri/icons/*.exe
+
+# Update metadata (generated for releases)
+# Note: latest.json should be generated for each release and uploaded to GitHub
+latest.json
+
+# Signing keys (NEVER commit these!)
+*.key
+*.key.pub
+.tauri/

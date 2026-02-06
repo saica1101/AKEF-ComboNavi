@@ -11,6 +11,9 @@ use tokio::sync::mpsc;
 
 use crate::combo::{ComboCommand, InputType, KeyIdentifier};
 
+/// Default hold threshold in milliseconds
+const DEFAULT_HOLD_THRESHOLD_MS: u64 = 300;
+
 /// Key event types for the input handler
 #[derive(Debug, Clone)]
 pub enum KeyEvent {
@@ -44,8 +47,6 @@ pub struct InputHandler {
     current_command: Arc<RwLock<Option<ComboCommand>>>,
     /// Hold threshold duration
     hold_threshold: Duration,
-    /// Event sender
-    event_sender: Option<mpsc::UnboundedSender<KeyEvent>>,
 }
 
 impl InputHandler {
@@ -54,8 +55,7 @@ impl InputHandler {
         Self {
             key_states: Arc::new(RwLock::new(HashMap::new())),
             current_command: Arc::new(RwLock::new(None)),
-            hold_threshold: Duration::from_millis(300),
-            event_sender: None,
+            hold_threshold: Duration::from_millis(DEFAULT_HOLD_THRESHOLD_MS),
         }
     }
 

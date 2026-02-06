@@ -92,6 +92,22 @@ impl AppState {
 
         None
     }
+
+    /// Helper function to advance command index
+    fn advance_command_internal(&self) -> bool {
+        let combo = self.combo_file.read();
+        if let Some(ref file) = *combo {
+            let commands: Vec<_> = file.commands.iter().filter(|c| !c.is_title).collect();
+            if commands.is_empty() {
+                return false;
+            }
+            let mut index = self.current_index.write();
+            *index = (*index + 1) % commands.len();
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for AppState {
@@ -147,20 +163,12 @@ fn get_current_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
 
 #[tauri::command]
 fn advance_command(state: State<AppState>) -> Option<CurrentCommandInfo> {
-    {
-        let combo = state.combo_file.read();
-        if let Some(ref file) = *combo {
-            let commands: Vec<_> = file.commands.iter().filter(|c| !c.is_title).collect();
-            let mut index = state.current_index.write();
-
-            if commands.is_empty() {
-                return None;
-            }
-            *index = (*index + 1) % commands.len();
-        }
+    if state.advance_command_internal() {
+        state.sync_input_handler();
+        state.get_current_command_internal()
+    } else {
+        None
     }
-    state.sync_input_handler();
-    state.get_current_command_internal()
 }
 
 #[tauri::command]
@@ -253,16 +261,7 @@ async fn app_exit(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
-#[tauri::command]
-async fn set_click_through(window: tauri::Window, enabled: bool) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        window
-            .set_ignore_cursor_events(enabled)
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
+
 
 fn key_to_string(key: Key) -> String {
     match key {
@@ -315,6 +314,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             load_combo_file,
@@ -328,7 +328,6 @@ pub fn run() {
             toggle_overlay,
             set_overlay_visible,
             get_overlay_visible,
-            set_click_through,
             open_settings_window,
             set_overlay_opacity,
             app_exit,
@@ -336,7 +335,34 @@ pub fn run() {
         .setup(|app| {
             // Set initial click-through state for main window
             if let Some(main_window) = app.get_webview_window("main") {
-                let _ = main_window.set_ignore_cursor_events(true);
+                match main_window.set_ignore_cursor_events(true) {
+                    Ok(_) => {
+                        #[cfg(debug_assertions)]
+                        println!("[DEBUG] Successfully set ignore_cursor_events to TRUE on startup")
+                    }
+                    Err(e) => eprintln!("[ERROR] Failed to set ignore_cursor_events: {}", e),
+                }
+                
+                // Listen for focus events and re-apply ignore_cursor_events when focus is lost
+                let main_clone = main_window.clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(is_focused) = event {
+                        #[cfg(debug_assertions)]
+                        println!("[DEBUG] Main window focus changed: is_focused={}", is_focused);
+                        if !is_focused {
+                            // Window lost focus - re-enable click-through
+                            match main_clone.set_ignore_cursor_events(true) {
+                                Ok(_) => {
+                                    #[cfg(debug_assertions)]
+                                    println!("[DEBUG] Re-enabled ignore_cursor_events on focus lost")
+                                }
+                                Err(e) => eprintln!("[ERROR] Failed to re-enable ignore_cursor_events on focus lost: {}", e),
+                            }
+                        }
+                    }
+                });
+            } else {
+                eprintln!("[ERROR] Could not get main window on startup");
             }
 
             if let Some(settings_window) = app.get_webview_window("settings") {
@@ -373,21 +399,7 @@ pub fn run() {
 
                     match event {
                         KeyEvent::TapComplete(_) | KeyEvent::HoldComplete(_) => {
-                            let mut advanced = false;
-                            {
-                                let combo = state.combo_file.read();
-                                if let Some(ref file) = *combo {
-                                    let commands: Vec<_> =
-                                        file.commands.iter().filter(|c| !c.is_title).collect();
-                                    let mut index = state.current_index.write();
-                                    if !commands.is_empty() {
-                                        *index = (*index + 1) % commands.len();
-                                        advanced = true;
-                                    }
-                                }
-                            }
-
-                            if advanced {
+                            if state.advance_command_internal() {
                                 state.sync_input_handler();
                                 if let Some(cmd) = state.get_current_command_internal() {
                                     let _ = app_handle_input.emit("combo-update", cmd);
@@ -400,32 +412,25 @@ pub fn run() {
                         }
                         KeyEvent::KeyDown(key) => {
                             if matches!(key, Key::Alt | Key::AltGr) {
+                                #[cfg(debug_assertions)]
                                 println!("[DEBUG] lib.rs received Alt KeyDown: {:?}", key);
                                 let _ = app_handle_input.emit("alt-status-changed", true);
                                 if let Some(win) = app_handle_input.get_webview_window("main") {
-                                    let _ = win.set_ignore_cursor_events(false);
+                                    match win.set_ignore_cursor_events(false) {
+                                        Ok(_) => {
+                                            #[cfg(debug_assertions)]
+                                            println!("[DEBUG] Successfully set ignore_cursor_events to FALSE (Alt down)")
+                                        }
+                                        Err(e) => eprintln!("[ERROR] Failed to disable ignore_cursor_events: {}", e),
+                                    }
+                                } else {
+                                    eprintln!("[ERROR] Could not get main window on Alt KeyDown");
                                 }
                             }
 
                             match key {
                                 Key::RightArrow => {
-                                    let mut advanced = false;
-                                    {
-                                        let combo = state.combo_file.read();
-                                        if let Some(ref file) = *combo {
-                                            let commands: Vec<_> = file
-                                                .commands
-                                                .iter()
-                                                .filter(|c| !c.is_title)
-                                                .collect();
-                                            let mut index = state.current_index.write();
-                                            if !commands.is_empty() {
-                                                *index = (*index + 1) % commands.len();
-                                                advanced = true;
-                                            }
-                                        }
-                                    }
-                                    if advanced {
+                                    if state.advance_command_internal() {
                                         state.sync_input_handler();
                                         if let Some(cmd) = state.get_current_command_internal() {
                                             let _ = app_handle_input.emit("combo-update", cmd);
@@ -463,13 +468,17 @@ pub fn run() {
                             let config = state.config.read();
                             let key_str = key_to_string(key);
 
-                            println!("[DEBUG] Key pressed: {:?} => '{}'", key, key_str);
-                            println!(
-                                "[DEBUG] open_settings binding: '{}'",
-                                config.key_bindings.open_settings
-                            );
+                            #[cfg(debug_assertions)]
+                            {
+                                println!("[DEBUG] Key pressed: {:?} => '{}'", key, key_str);
+                                println!(
+                                    "[DEBUG] open_settings binding: '{}'",
+                                    config.key_bindings.open_settings
+                                );
+                            }
 
                             if key_str == config.key_bindings.open_settings {
+                                #[cfg(debug_assertions)]
                                 println!("[DEBUG] Opening settings window");
                                 let _ = app_handle_input.emit("request-open-settings", ());
                                 // Drop config lock before window operations
@@ -501,10 +510,19 @@ pub fn run() {
                         }
                         KeyEvent::KeyUp(key) => {
                             if matches!(key, Key::Alt | Key::AltGr) {
+                                #[cfg(debug_assertions)]
                                 println!("[DEBUG] lib.rs received Alt KeyUp: {:?}", key);
                                 let _ = app_handle_input.emit("alt-status-changed", false);
                                 if let Some(win) = app_handle_input.get_webview_window("main") {
-                                    let _ = win.set_ignore_cursor_events(true);
+                                    match win.set_ignore_cursor_events(true) {
+                                        Ok(_) => {
+                                            #[cfg(debug_assertions)]
+                                            println!("[DEBUG] Successfully set ignore_cursor_events to TRUE (Alt up)")
+                                        }
+                                        Err(e) => eprintln!("[ERROR] Failed to enable ignore_cursor_events: {}", e),
+                                    }
+                                } else {
+                                    eprintln!("[ERROR] Could not get main window on Alt KeyUp");
                                 }
                             }
                         }
