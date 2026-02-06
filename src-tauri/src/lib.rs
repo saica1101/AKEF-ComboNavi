@@ -375,6 +375,9 @@ pub fn run() {
                 });
             }
 
+            // Spawn background thread for game process monitoring
+            // Note: This thread runs indefinitely. When the application exits,
+            // the OS will automatically terminate this background thread.
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
                 let mut last_status = false;
@@ -383,6 +386,19 @@ pub fn run() {
                     if running != last_status {
                         last_status = running;
                         let _ = app_handle.emit("game-status-changed", running);
+                        
+                        // Show/hide main window based on game process status
+                        if let Some(main_window) = app_handle.get_webview_window("main") {
+                            if running {
+                                #[cfg(debug_assertions)]
+                                println!("[DEBUG] Game process detected - showing overlay");
+                                let _ = main_window.show();
+                            } else {
+                                #[cfg(debug_assertions)]
+                                println!("[DEBUG] Game process not found - hiding overlay");
+                                let _ = main_window.hide();
+                            }
+                        }
                     }
                     std::thread::sleep(std::time::Duration::from_secs(2));
                 }

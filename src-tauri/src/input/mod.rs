@@ -213,6 +213,18 @@ impl Default for InputHandler {
 }
 
 /// Start global key listener in a separate thread
+/// Start a global key listener in a background thread
+///
+/// This function spawns a background thread that listens to all keyboard and mouse events
+/// using `rdev::listen()`. The listener runs indefinitely until the application terminates.
+///
+/// # Thread Lifecycle
+/// - **Start**: The thread starts immediately when this function is called
+/// - **Stop**: The thread cannot be manually stopped due to `rdev::listen()`'s blocking nature
+/// - **Cleanup**: When the application exits, the OS automatically terminates this thread
+///
+/// # Returns
+/// Returns a receiver channel that will receive `KeyEvent` notifications
 pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiver<KeyEvent> {
     let (tx, rx) = mpsc::unbounded_channel();
 

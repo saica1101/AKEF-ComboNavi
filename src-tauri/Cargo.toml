@@ -1,8 +1,9 @@
 [package]
 name = "akef-combonavi"
-version = "0.1.0"
+version = "1.0.0"
 description = "AKEF ComboNavi - Arknights: Endfield Combo Navigation Tool"
-authors = ["you"]
+authors = ["saica"]
+license = "GPL-3.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

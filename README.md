@@ -1,7 +1,149 @@
-# Tauri + SvelteKit + TypeScript
+# AKEF ComboNavi
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+**Arknights: Endfield** 向けコンボナビゲーションツール
 
-## Recommended IDE Setup
+プレイ中のコンボ操作をリアルタイムで表示するオーバーレイアプリケーションです。
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+## ✨ 機能
+
+- 🎮 **ゲーム連動**: Endfield.exe起動時に自動的にオーバーレイを表示
+- 📋 **コンボ表示**: 現在実行すべき操作をリアルタイムで表示
+- ⌨️ **自動入力検出**: タップ/ホールド操作を自動検出して次のステップへ進行
+- 🎨 **透過オーバーレイ**: ゲーム画面に重ねて表示可能
+- 🔄 **自動アップデート**: GitHubリリースから最新版を自動取得
+- 🌐 **多言語対応(予定)**: 日本語、英語、中国語（簡体字・繁体字）
+
+## 📦 インストール方法
+
+1. [Releases](https://github.com/saica1101/AKEF-ComboNavi/releases/latest)から最新版のZIPファイルをダウンロード
+2. ZIPファイルを解凍
+3. `akef-combonavi.exe`を実行
+
+**必要環境:**
+- Windows 10/11 (64bit)
+- .NET Framework（通常はWindowsに標準搭載）
+
+## 🚀 使い方
+
+### 基本操作
+
+1. **アプリ起動**: `akef-combonavi.exe`を実行
+2. **ゲーム起動**: Endfield.exeを起動すると自動的にオーバーレイが表示されます
+3. **コンボ読み込み**: 設定画面（`Home`キー）からコンボファイルを読み込み
+4. **操作**: 表示されたコンボに従って操作すると、自動的に次のステップへ進みます
+
+### キーバインド（デフォルト）
+
+| キー | 機能 |
+|------|------|
+| `Home` | 設定画面を開く |
+| `PageUp` | オーバーレイの表示/非表示 |
+| `Alt` + ドラッグ | オーバーレイの移動 |
+| `←` / `→` | コンボのステップを手動で前後移動 |
+
+### オーバーレイ操作
+
+- **移動**: `Alt`キーを押しながらドラッグ
+- **透明度調整**: 設定画面で調整可能
+- **クリックスルー**: `Alt`キーを離すと背後のゲーム画面をクリック可能
+
+## 📝 コンボファイルの作成
+
+コンボファイルは`.txt`形式で作成します：
+
+```
+1行目 : # コンボ名
+2行目～ : 対応キー,オペレーター名,技種,メモ
+最終行 : !!!!! `(コンボループの終点)
+
+記載例
+#,物理,,|
+U2,リーフォン,必殺技,|
+2,リーフォン,戦技,|
+E,チェン,連携,|
+3,ポグ,戦技,|
+U3,ポグ,必殺技,|
+2,リーフォン,戦技,|
+E,ポグ,連携,|
+E,リーフォン,連携,|
+E,管理人,連携,|
+U4,チェン,必殺技,|
+U1,管理人,必殺技,|
+4,チェン,戦技,|
+4,チェン,戦技,|
+E,チェン,連携,|
+L,管理人,重撃,|
+E,リーフォン,連携,|
+E,管理人,連携,|
+1,管理人,戦技,|
+E,リーフォン,戦技,可能なら|
+E,ポグ,連携,|
+!!!!!
+
+// U = 必殺技
+// 数字 = 押下するキー
+// 技種 = 必殺技なら長押し, 戦技なら短押し, 重撃ならLClick
+// `|` = 行の終わり
+// `!`が5個 = コンボ終了。また最初から表示
+// `//` = コメントアウト
+```
+
+**キー指定:**
+- `1-4`: 数字キー（スキル）
+- `hold-1` ~ `hold-4`: ホールド操作
+- `E`: 連携攻撃
+- `L`: 重撃/左クリック
+
+## ⚙️ 設定
+
+設定画面（`Home`キー）から以下を変更可能：
+
+- キーバインド
+- オーバーレイの透明度
+- 監視するゲームプロセス名
+- 言語設定
+
+設定は`config/General.toml`に保存されます。
+
+## 🔄 アップデート
+
+設定画面の「About」タブから「アップデートをチェック」ボタンで最新版を確認できます。
+
+新バージョンがある場合、自動的にダウンロード・インストールされます。
+
+## 🛠️ 開発
+
+### ビルド方法
+
+```bash
+# 依存関係のインストール
+npm install
+
+# 開発モード
+npm run tauri dev
+
+# リリースビルド
+npm run tauri build
+```
+
+### 技術スタック
+
+- **フレームワーク**: Tauri v2
+- **フロントエンド**: SvelteKit + TypeScript
+- **バックエンド**: Rust
+- **UIライブラリ**: bits-ui, lucide-svelte
+
+## 📄 ライセンス
+
+[GPL-3.0 License](LICENSE)
+
+## 🔗 リンク
+
+- [GitHubリポジトリ](https://github.com/saica1101/AKEF-ComboNavi)
+- [最新リリース](https://github.com/saica1101/AKEF-ComboNavi/releases/latest)
+- [問題報告](https://github.com/saica1101/AKEF-ComboNavi/issues)
+
+## 🙏 クレジット
+
+Arknights: Endfield © Hypergryph/Studio Montagne  
+©GRYPHLINE

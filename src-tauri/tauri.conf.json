@@ -24,7 +24,7 @@
         "focus": false,
         "x": 100,
         "y": 100,
-        "visible": true
+        "visible": false
       },
       {
         "label": "settings",
