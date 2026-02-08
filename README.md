@@ -163,7 +163,7 @@ E,ポグ,連携,|
 すべてのソースコードは公開されており、不正な処理(情報の送信やバックドアなど)が行われていない事を誰でも検証可能です。
 
 ### 各AIサービスの回答
-- [Google Gemini](https://gemini.google.com/share/fe2ff8e0952a)
+- [Google Gemini](https://gemini.google.com/share/70990adabe30)
 - [ChatGPT](https://chatgpt.com/s/cd_6988a7dfcff8819189076653b1784a45)
 
 ---
