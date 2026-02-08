@@ -363,8 +363,8 @@
           <div class="license-text">
             <h3>ゲームリソース</h3>
             <p>
-              「Arknights: Endfield」およびゲーム内で使用されるリソース
-              （キャラクター名、アイコン等）はGRYPHLINE（鹰角网络）の権利です。
+              「Arknights: Endfield」およびゲーム内で使用されるあらゆるリソース
+              （キャラクターモデル、キャラクター名、アイコン等を含む）はGRYPHLINE（鹰角网络）の権利です。
             </p>
 
             <h3>本プログラム</h3>
