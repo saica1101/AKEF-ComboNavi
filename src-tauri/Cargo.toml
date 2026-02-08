@@ -14,6 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+embed-resource = "2"
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -40,4 +41,12 @@ once_cell = "1.19"
 
 # Parking lot for efficient locks
 parking_lot = "0.12"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+] }
 

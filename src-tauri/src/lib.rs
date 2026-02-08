@@ -220,13 +220,17 @@ fn toggle_overlay(state: State<AppState>, app_handle: tauri::AppHandle) -> bool 
     let mut visible = state.overlay_visible.write();
     *visible = !*visible;
 
+    let active = ProcessMonitor::is_game_active();
+
     if let Some(window) = app_handle.get_webview_window("main") {
-        if *visible {
+        if *visible && active {
             let _ = window.show();
         } else {
             let _ = window.hide();
         }
     }
+
+    let _ = app_handle.emit("overlay-visibility-changed", *visible);
 
     *visible
 }
@@ -257,7 +261,10 @@ async fn set_overlay_opacity(app_handle: tauri::AppHandle, opacity: f64) -> Resu
 }
 
 #[tauri::command]
-async fn app_exit(app_handle: tauri::AppHandle) {
+fn app_exit(state: State<AppState>, app_handle: tauri::AppHandle) {
+    // Save config on exit
+    let config = state.config.read();
+    let _ = config.save(Config::default_path());
     app_handle.exit(0);
 }
 
@@ -333,9 +340,60 @@ pub fn run() {
             app_exit,
         ])
         .setup(|app| {
-            // Set initial click-through state for main window
-            if let Some(main_window) = app.get_webview_window("main") {
-                match main_window.set_ignore_cursor_events(true) {
+                // Restore window positions from config
+                let state_checkout = app.state::<AppState>();
+                let config = state_checkout.config.read();
+                
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                        x: config.overlay.x,
+                        y: config.overlay.y,
+                    }));
+                }
+
+                if let Some(settings) = app.get_webview_window("settings") {
+                     if config.settings_window.x != -1 && config.settings_window.y != -1 {
+                        let _ = settings.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                            x: config.settings_window.x,
+                            y: config.settings_window.y,
+                        }));
+                     }
+                }
+                drop(config);
+
+                // Listen for window move events to update config in memory
+                if let Some(main_window) = app.get_webview_window("main") {
+                    let app_handle_move = app.handle().clone();
+                    main_window.on_window_event(move |event| {
+                        if let tauri::WindowEvent::Moved(pos) = event {
+                             let state = app_handle_move.state::<AppState>();
+                             // Use try_write to avoid potential deadlocks in event loop, mostly safe though
+                             let mut maybe_config = state.config.try_write();
+                             if let Some(ref mut config) = maybe_config {
+                                 config.overlay.x = pos.x;
+                                 config.overlay.y = pos.y;
+                             }
+                        }
+                    });
+                }
+
+                if let Some(settings_window) = app.get_webview_window("settings") {
+                    let app_handle_move = app.handle().clone();
+                    settings_window.on_window_event(move |event| {
+                        if let tauri::WindowEvent::Moved(pos) = event {
+                             let state = app_handle_move.state::<AppState>();
+                             let mut maybe_config = state.config.try_write();
+                             if let Some(ref mut config) = maybe_config {
+                                 config.settings_window.x = pos.x;
+                                 config.settings_window.y = pos.y;
+                             }
+                        }
+                    });
+                }
+                
+                // Listener for click-through state (existing code)
+                if let Some(main_window) = app.get_webview_window("main") {
+                    match main_window.set_ignore_cursor_events(true) {
                     Ok(_) => {
                         #[cfg(debug_assertions)]
                         println!("[DEBUG] Successfully set ignore_cursor_events to TRUE on startup")
@@ -367,8 +425,15 @@ pub fn run() {
 
             if let Some(settings_window) = app.get_webview_window("settings") {
                 let settings_clone = settings_window.clone();
+                let app_handle_close = app.handle().clone();
                 settings_window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Save config before hiding
+                        let state = app_handle_close.state::<AppState>();
+                        let config = state.config.read();
+                        let _ = config.save(Config::default_path());
+                        drop(config); // Drop read lock
+
                         api.prevent_close();
                         let _ = settings_clone.minimize();
                     }
@@ -380,27 +445,40 @@ pub fn run() {
             // the OS will automatically terminate this background thread.
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
-                let mut last_status = false;
+                let mut last_visible = false;
                 loop {
-                    let running = ProcessMonitor::check_once();
-                    if running != last_status {
-                        last_status = running;
-                        let _ = app_handle.emit("game-status-changed", running);
+                    let active = ProcessMonitor::is_game_active();
+                    
+                    // Check user preference
+                    let should_be_visible = {
+                        let state = app_handle.state::<AppState>();
+                        let user_wants_visible = *state.overlay_visible.read();
+                        active && user_wants_visible
+                    };
+
+                    if should_be_visible != last_visible {
+                        last_visible = should_be_visible;
                         
-                        // Show/hide main window based on game process status
+                        // Show/hide main window based on logic
                         if let Some(main_window) = app_handle.get_webview_window("main") {
-                            if running {
+                            if should_be_visible {
                                 #[cfg(debug_assertions)]
-                                println!("[DEBUG] Game process detected - showing overlay");
+                                println!("[DEBUG] Game active & user enabled - showing overlay");
                                 let _ = main_window.show();
                             } else {
                                 #[cfg(debug_assertions)]
-                                println!("[DEBUG] Game process not found - hiding overlay");
+                                println!("[DEBUG] Game inactive or user disabled - hiding overlay");
                                 let _ = main_window.hide();
                             }
                         }
                     }
-                    std::thread::sleep(std::time::Duration::from_secs(2));
+
+                    // Emit game status for frontend (e.g., to stop animations if paused?)
+                    // Even if hidden, the frontend might want to know.
+                    let _ = app_handle.emit("game-status-changed", active);
+                    
+                    // Check more frequently for responsiveness (500ms)
+                    std::thread::sleep(std::time::Duration::from_millis(500));
                 }
             });
 
@@ -425,6 +503,10 @@ pub fn run() {
                         KeyEvent::HoldProgress(_, progress) => {
                             // Emit hold progress to frontend
                             let _ = app_handle_input.emit("hold-progress", progress);
+                        }
+                        KeyEvent::HoldReset(_) => {
+                            // Reset hold progress on frontend
+                            let _ = app_handle_input.emit("hold-progress", 0.0);
                         }
                         KeyEvent::KeyDown(key) => {
                             if matches!(key, Key::Alt | Key::AltGr) {

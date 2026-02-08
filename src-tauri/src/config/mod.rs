@@ -43,7 +43,7 @@ impl Default for KeyBindings {
     fn default() -> Self {
         Self {
             open_settings: "Home".to_string(),
-            toggle_overlay: "F1".to_string(),
+            toggle_overlay: "PageUp".to_string(),
             normal_attack: "MouseLeft".to_string(),
             chain_attack: "E".to_string(),
             operator1_skill: "1".to_string(),
@@ -82,6 +82,21 @@ impl Default for OverlaySettings {
     }
 }
 
+/// Settings window configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SettingsWindowSettings {
+    /// X position
+    pub x: i32,
+    /// Y position
+    pub y: i32,
+}
+
+impl Default for SettingsWindowSettings {
+    fn default() -> Self {
+        Self { x: -1, y: -1 } // -1 indicates "use default/center" or "not set"
+    }
+}
+
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -91,6 +106,8 @@ pub struct Config {
     pub key_bindings: KeyBindings,
     /// Overlay settings
     pub overlay: OverlaySettings,
+    /// Settings window settings
+    pub settings_window: SettingsWindowSettings,
     /// Last loaded combo file path
     pub last_combo_file: Option<String>,
 }
@@ -175,6 +192,7 @@ mod tests {
         let config = Config::default();
         assert!(matches!(config.language, Language::Japanese));
         assert_eq!(config.key_bindings.open_settings, "Home");
+        assert_eq!(config.key_bindings.toggle_overlay, "PageUp");
     }
 
     #[test]

@@ -27,6 +27,8 @@ pub enum KeyEvent {
     TapComplete(Key),
     /// Hold progress update (key, progress 0.0-1.0)
     HoldProgress(Key, f32),
+    /// Hold cancelled/reset (key released before threshold)
+    HoldReset(Key),
 }
 
 /// State of a pressed key
@@ -169,7 +171,8 @@ impl InputHandler {
                     if duration >= self.hold_threshold {
                         return Some(KeyEvent::HoldComplete(key));
                     }
-                    // Key released too early - hold not complete
+                    // Key released too early - hold not complete, reset progress
+                    return Some(KeyEvent::HoldReset(key));
                 }
             }
         }
@@ -287,8 +290,8 @@ pub fn start_global_key_listener(handler: InputHandler) -> mpsc::UnboundedReceiv
                 // Also process through handler for combo detection (if not Alt)
                 if !matches!(key, Key::Alt | Key::AltGr) {
                     if let Some(evt) = handler_clone.on_key_release(key) {
-                        // Only send if it's a combo event (HoldComplete)
-                        if matches!(evt, KeyEvent::HoldComplete(_)) {
+                        // Only send if it's a combo event (HoldComplete or HoldReset)
+                        if matches!(evt, KeyEvent::HoldComplete(_) | KeyEvent::HoldReset(_)) {
                             let _ = tx.send(evt);
                         }
                     }

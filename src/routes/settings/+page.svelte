@@ -183,6 +183,7 @@
     { id: "keybinds", label: "キーコンフィグ" },
     { id: "about", label: "About" },
     { id: "license", label: "ライセンス" },
+    { id: "disclaimer", label: "免責事項" },
   ];
 
   const keyBindingItems = [
@@ -222,6 +223,14 @@
 <main class="settings-container">
   <header>
     <h1>AKEF ComboNavi 設定</h1>
+    <div class="header-actions">
+      {#if saveMessage}
+        <span class="save-message">{saveMessage}</span>
+      {/if}
+      <button class="btn primary" on:click={handleSave} disabled={isSaving}>
+        {isSaving ? "保存中..." : "保存"}
+      </button>
+    </div>
   </header>
 
   <nav class="tabs">
@@ -332,7 +341,7 @@
           <h2>About</h2>
           <div class="about-info">
             <p><strong>AKEF ComboNavi</strong></p>
-            <p>Version: 0.1.0</p>
+            <p>Version: 1.0.0</p>
             <p>Arknights: Endfield 向けコンボナビゲーションツール</p>
             <div class="links">
               <a
@@ -373,20 +382,47 @@
             </ul>
           </div>
         </section>
+      {:else if activeTab === "disclaimer"}
+        <section class="tab-content">
+          <h2>免責事項</h2>
+          <div class="disclaimer-text">
+            <p>
+              本ツールの利用にあたっては、以下の事項を承諾したものとみなされます。
+            </p>
+            <div class="disclaimer-item">
+              <h3>非公式ツール</h3>
+              <p>
+                本ツールは「アークナイツ：エンドフィールド」の公式ツールではなく、Hypergryph、StudioMontagne、およびGRYPHLINEとは一切関係ありません。
+              </p>
+            </div>
+
+            <div class="disclaimer-item">
+              <h3>自己責任の原則</h3>
+              <p>
+                本ツールの利用により生じたアカウントの停止、制限、データの損失、コンピューターの不具合、その他いかなる不利益についても、開発者は一切の責任を負いません。
+              </p>
+            </div>
+
+            <div class="disclaimer-item">
+              <h3>アンチチートに関する注意</h3>
+              <p>
+                本ツールはゲームメモリの改変や不正な操作(マクロ)は行いませんが、OSレベルでの入力監視(グローバルフック)を行っています。これがゲーム側のアンチチートシステムによってどのように判定されるかは保証できません。
+              </p>
+            </div>
+
+            <div class="disclaimer-item">
+              <h3>サポートの非保証</h3>
+              <p>
+                開発者は本ツールのアップデートや修正、およびサポートを提供する義務を負いません。ゲーム側の仕様変更により本ツールが動作しなくなる場合があります。
+              </p>
+            </div>
+          </div>
+        </section>
       {/if}
     {:else}
       <p>設定を読み込み中...</p>
     {/if}
   </div>
-
-  <footer>
-    {#if saveMessage}
-      <span class="save-message">{saveMessage}</span>
-    {/if}
-    <button class="btn primary" on:click={handleSave} disabled={isSaving}>
-      {isSaving ? "保存中..." : "保存"}
-    </button>
-  </footer>
 </main>
 
 <style>
@@ -399,15 +435,19 @@
   }
 
   .settings-container {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   header {
     padding: 16px 24px;
     background: #16213e;
     border-bottom: 1px solid #2a3a5d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 
   h1 {
@@ -538,14 +578,28 @@
     padding-left: 20px;
   }
 
-  footer {
-    padding: 16px 24px;
-    background: #16213e;
-    border-top: 1px solid #2a3a5d;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 16px;
+  /* Disclaimer added styles */
+  .disclaimer-item {
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .disclaimer-item h3 {
+    margin: 0 0 8px 0;
+    color: #fb8c00; /* Warning color for disclaimer items */
+    font-size: 15px;
+    border-bottom: 1px solid rgba(251, 140, 0, 0.3);
+    padding-bottom: 4px;
+    display: inline-block;
+  }
+
+  .disclaimer-item p {
+    margin: 0;
+    line-height: 1.6;
+    color: #ddd;
   }
 
   .save-message {
@@ -601,5 +655,11 @@
     margin-top: 8px;
     font-size: 14px;
     color: #4fc3f7;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
 </style>

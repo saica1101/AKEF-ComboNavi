@@ -201,22 +201,23 @@
 
       <div class="command-info">
         <div class="key-display" class:hold={$currentCommand.is_hold}>
-          {#if $currentCommand.is_hold}
+          <div class="hold-fill-wrapper">
             <div
               class="hold-fill-overlay"
-              style="height: {$holdProgress * 100}%"
+              style="height: {$currentCommand.is_hold
+                ? $holdProgress * 100
+                : 0}%"
             ></div>
-            <span class="hold-indicator">HOLD</span>
-          {/if}
+          </div>
           <span class="key">{$currentCommand.key_display}</span>
         </div>
 
         <div class="details">
           <span class="character">{$currentCommand.character}</span>
           <span class="skill-type">{$currentCommand.skill_type}</span>
-          {#if $currentCommand.memo}
-            <span class="memo">{$currentCommand.memo}</span>
-          {/if}
+          <span class="memo" class:empty={!$currentCommand.memo}>
+            {$currentCommand.memo || ""}
+          </span>
         </div>
       </div>
     </div>
@@ -345,9 +346,13 @@
   }
   .combo-display {
     width: 100%;
+    /* Fixed minimum height to prevent layout shift when memo is present/absent */
+    /* Approx calculation: Title(~20px) + Bar(3px) + Gap(8px) + Info(50px) + Gap(16px) */
+    min-height: 110px;
     padding: 12px 16px;
     display: flex;
     flex-direction: column;
+    justify-content: center; /* Center content vertically in the fixed container */
     gap: 8px;
   }
   .title-bar {
@@ -383,8 +388,11 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 60px;
-    padding: 8px 12px;
+    justify-content: center;
+    width: 90px; /* Fixed width */
+    height: 54px; /* Fixed height */
+    padding: 4px; /* Add padding to prevent cramped look */
+    box-sizing: border-box; /* Include padding/border in width/height */
     background: linear-gradient(135deg, #1a1a2e, #16213e);
     border: 2px solid #4fc3f7;
     border-radius: 8px;
@@ -404,6 +412,17 @@
       box-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
     }
   }
+  .hold-fill-wrapper {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: 6px; /* Match parent minus border */
+  }
   .hold-fill-overlay {
     position: absolute;
     bottom: 0;
@@ -414,14 +433,9 @@
       rgba(255, 107, 107, 0.6),
       rgba(255, 107, 107, 0.3)
     );
-    pointer-events: none;
     transition: height 0.05s linear;
-    z-index: 0;
   }
-  .hold-indicator {
-    position: relative;
-    z-index: 1;
-  }
+
   .key {
     position: relative;
     z-index: 1;
@@ -433,7 +447,13 @@
   .details {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 2px;
+    /* Minimize layout shift impact from text changes */
+    min-width: 120px;
+    /* Fixed height to accommodate Character + Skill + Memo (approx 3 lines) */
+    /* This ensures layout doesn't shift when memo is present/absent */
+    height: 60px;
   }
   .character {
     font-size: 18px;
@@ -450,6 +470,11 @@
     font-size: 12px;
     color: #aaa;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+    min-height: 1.2em; /* Reserve space even if empty */
+    line-height: 1.2;
+  }
+  .memo.empty {
+    /* Optional: can add specific style for empty state if needed, but min-height handles layout */
   }
   .no-file {
     display: flex;
