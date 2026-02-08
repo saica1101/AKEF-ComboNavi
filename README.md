@@ -275,6 +275,6 @@ npm run tauri build
 ---
 
 ## 🙏 クレジット
-
+**`アークナイツ：エンドフィールド(Arknights: Endfield, 明日方舟：终末地)`およびゲーム内で使用されるあらゆるリソース(キャラクターモデル、キャラクター名、アイコン等を含む)の著作権は開発および運営元（`Hypergryph/Studio Montagne, GRYPHLINE`）に帰属します。**  
 Arknights: Endfield © Hypergryph/Studio Montagne  
 ©GRYPHLINE
