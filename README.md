@@ -46,7 +46,8 @@
 - 🌐 **多言語対応(予定)**: 日本語、英語、中国語（簡体字・繁体字）
 
 ## 動画プレビュー
-<iframe width="560" height="315" src="https://www.youtube.com/embed/Osutv144yiw?si=BNTI3_y3SNr_Vi5i" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![AKEF Combo Navi](video_thumbnail.png)](https://www.youtube.com/watch?v=Osutv144yiw)
+
 ---
 
 ## 📦 インストール方法
